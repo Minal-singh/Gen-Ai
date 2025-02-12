@@ -17,7 +17,7 @@ os.environ["LANGSMITH_API_KEY"] = os.getenv("LANGSMITH_API_KEY")
 os.environ["LANGSMITH_TRACING"] = os.getenv("LANGSMITH_TRACING")
 os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY")
 
-st.title("LangChain OpenAI Chat")
+st.title("LangChain Gemini 2.0 Chat")
 input_text = st.text_input("Enter your question here:")
 
 output_parser = StrOutputParser()

@@ -6,3 +6,4 @@ langserve
 langchain_google_genai
 langchain_community
 faiss-cpu
+pypdf

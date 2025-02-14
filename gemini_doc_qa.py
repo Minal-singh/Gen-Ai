@@ -25,11 +25,11 @@ st.title("LangChain Gemini 2.0 Document QA")
 
 prompt = ChatPromptTemplate.from_template(
     """
-Answer the following question based on the context provided.:
+Answer the following question based on the context provided.
 <context>
 {context}
 <context>
-Question: {input}
+Questions: {input}
 """
 )
 
@@ -39,7 +39,7 @@ def vector_embedding():
         st.session_state.embeddings = GoogleGenerativeAIEmbeddings(
             model="models/text-embedding-004",
         )
-        st.session_state.loader = PyPDFDirectoryLoader("pdf/alexa.pdf")
+        st.session_state.loader = PyPDFDirectoryLoader("pdf/")
         st.session_state.docs = st.session_state.loader.load()
         st.session_state.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000, chunk_overlap=100
@@ -61,9 +61,7 @@ if st.button("Create Vector Store"):
 if prompt1:
     document_chain = create_stuff_documents_chain(llm, prompt)
     retriever = st.session_state.vectors.as_retriever()
-    retrieval_chain = create_retrieval_chain(document_chain, retriever)
+    retrieval_chain = create_retrieval_chain(retriever, document_chain)
 
     response = retrieval_chain.invoke({"input": prompt1})
     st.write(response["answer"])
-
-    st.write(response["context"])

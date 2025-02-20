@@ -1,5 +1,4 @@
 import os
-
 from dotenv import load_dotenv
 import streamlit as st
 
@@ -36,13 +35,11 @@ Questions: {input}
 
 def vector_embedding():
     if "vectors" not in st.session_state:
-        st.session_state.embeddings = GoogleGenerativeAIEmbeddings(
-            model="models/text-embedding-004",
-        )
-        st.session_state.loader = PyPDFDirectoryLoader("pdf/")
-        st.session_state.docs = st.session_state.loader.load()
         st.session_state.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000, chunk_overlap=100
+        )
+        st.session_state.embeddings = GoogleGenerativeAIEmbeddings(
+            model="models/text-embedding-004",
         )
         st.session_state.final_documents = (
             st.session_state.text_splitter.split_documents(st.session_state.docs)
@@ -54,9 +51,21 @@ def vector_embedding():
 
 prompt1 = st.text_input("Enter your question here:")
 
-if st.button("Create Vector Store"):
-    vector_embedding()
-    st.write("Vector Store Created")
+if uploaded_files := st.file_uploader(
+    "Upload PDF files", type=["pdf"], accept_multiple_files=True
+):
+    st.session_state.docs = []
+    for uploaded_file in uploaded_files:
+        if uploaded_file.size > 10 * 1024 * 1024:  # 10 MB limit
+            st.error(f"File {uploaded_file.name} exceeds the 10MB size limit.")
+            continue
+        with open(os.path.join("tempDir", uploaded_file.name), "wb") as f:
+            f.write(uploaded_file.getbuffer())
+    loader = PyPDFDirectoryLoader("tempDir/")
+    st.session_state.docs.extend(loader.load())
+    if st.button("Create Vector Store"):
+        vector_embedding()
+        st.write("Vector Store Created")
 
 if prompt1:
     document_chain = create_stuff_documents_chain(llm, prompt)

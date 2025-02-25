@@ -172,3 +172,6 @@ cython_debug/
 
 # flake8 config file
 .flake8
+
+# Files created for storing pdfs
+tempDir/

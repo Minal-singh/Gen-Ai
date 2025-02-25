@@ -20,7 +20,8 @@ llm = ChatGoogleGenerativeAI(
     model="gemini-2.0-flash", temperature=0, max_tokens=1000, timeout=2, max_retries=2
 )
 
-st.title("LangChain Gemini 2.0 Document QA")
+st.set_page_config(layout="wide")
+st.title("Document Q&A using LangChain and Gemini 2.0 Flash")
 
 prompt = ChatPromptTemplate.from_template(
     """
@@ -49,8 +50,6 @@ def vector_embedding():
         )
 
 
-prompt1 = st.text_input("Enter your question here:")
-
 if uploaded_files := st.file_uploader(
     "Upload PDF files", type=["pdf"], accept_multiple_files=True
 ):
@@ -67,6 +66,7 @@ if uploaded_files := st.file_uploader(
         vector_embedding()
         st.write("Vector Store Created")
 
+prompt1 = st.text_input("Enter your question here:")
 if prompt1:
     document_chain = create_stuff_documents_chain(llm, prompt)
     retriever = st.session_state.vectors.as_retriever()

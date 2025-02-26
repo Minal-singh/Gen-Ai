@@ -20,10 +20,15 @@ llm = ChatGoogleGenerativeAI(
     model="gemini-2.0-flash", temperature=0, max_tokens=1000, timeout=2, max_retries=2
 )
 
-st.set_page_config(layout="wide")
-st.title("Document Q&A using LangChain and Gemini 2.0 Flash")
+st.set_page_config(page_title="Docs Q&A", layout="wide")
 
-prompt = ChatPromptTemplate.from_template(
+title_col, upload_button_col, clear_chat_col = st.columns(
+    [5, 1, 1], vertical_alignment="center"
+)
+with title_col:
+    st.title("Document Q&A using Gemini 2.0 Flash")
+
+chat_template = ChatPromptTemplate.from_template(
     """
 Answer the following question based on the context provided.
 <context>
@@ -48,29 +53,72 @@ def vector_embedding():
         st.session_state.vectors = FAISS.from_documents(
             st.session_state.final_documents, st.session_state.embeddings
         )
+        document_chain = create_stuff_documents_chain(llm, chat_template)
+        retriever = st.session_state.vectors.as_retriever()
+        st.session_state.retrieval_chain = create_retrieval_chain(
+            retriever, document_chain
+        )
 
 
-if uploaded_files := st.file_uploader(
-    "Upload PDF files", type=["pdf"], accept_multiple_files=True
-):
-    st.session_state.docs = []
-    for uploaded_file in uploaded_files:
-        if uploaded_file.size > 10 * 1024 * 1024:  # 10 MB limit
-            st.error(f"File {uploaded_file.name} exceeds the 10MB size limit.")
-            continue
-        with open(os.path.join("tempDir", uploaded_file.name), "wb") as f:
-            f.write(uploaded_file.getbuffer())
-    loader = PyPDFDirectoryLoader("tempDir/")
-    st.session_state.docs.extend(loader.load())
-    if st.button("Create Vector Store"):
-        vector_embedding()
-        st.write("Vector Store Created")
+@st.dialog("Upload PDF files", width="large")
+def upload_files():
+    if not os.path.exists("tempDir"):
+        os.makedirs("tempDir")
+    if uploaded_files := st.file_uploader(
+        "Upload PDF files", type=["pdf"], accept_multiple_files=True
+    ):
+        st.session_state.docs = []
+        for uploaded_file in uploaded_files:
+            if uploaded_file.size > 10 * 1024 * 1024:  # 10 MB limit
+                st.error(f"File {uploaded_file.name} exceeds the 10MB size limit.")
+                continue
+            with open(os.path.join("tempDir", uploaded_file.name), "wb") as f:
+                f.write(uploaded_file.getbuffer())
+        loader = PyPDFDirectoryLoader("tempDir/")
+        st.session_state.docs.extend(loader.load())
+        if st.button("Create Vector Store"):
+            vector_embedding()
+            st.write("Vector Store Created")
 
-prompt1 = st.text_input("Enter your question here:")
-if prompt1:
-    document_chain = create_stuff_documents_chain(llm, prompt)
-    retriever = st.session_state.vectors.as_retriever()
-    retrieval_chain = create_retrieval_chain(retriever, document_chain)
 
-    response = retrieval_chain.invoke({"input": prompt1})
-    st.write(response["answer"])
+with upload_button_col:
+    st.button(
+        "Upload files",
+        type="secondary",
+        use_container_width=True,
+        on_click=upload_files,
+    )
+
+
+def clear_chat():
+    st.session_state.clear()
+
+
+with clear_chat_col:
+    st.button(
+        "Clear Chat",
+        type="primary",
+        use_container_width=True,
+        on_click=clear_chat,
+    )
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["text"])
+
+
+if prompt := st.chat_input("Enter your question here:"):
+    if "vectors" not in st.session_state:
+        st.error("Please upload PDF files first.")
+        st.stop()
+    st.session_state.messages.append({"role": "user", "text": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+    with st.spinner("Thinking..."):
+        response = st.session_state.retrieval_chain.invoke({"input": prompt})
+    with st.chat_message("ai"):
+        st.markdown(response["answer"])
+    st.session_state.messages.append({"role": "ai", "text": response["answer"]})

@@ -4,11 +4,13 @@ import streamlit as st
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.chains.retrieval import create_retrieval_chain
+from langchain.chains.history_aware_retriever import create_history_aware_retriever
 from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyPDFDirectoryLoader
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain_core.messages import AIMessage, HumanMessage
 
 load_dotenv()
 
@@ -28,14 +30,19 @@ title_col, upload_button_col, clear_chat_col = st.columns(
 with title_col:
     st.title("Document Q&A using Gemini 2.0 Flash")
 
-chat_template = ChatPromptTemplate.from_template(
-    """
-Answer the following question based on the context provided.
-<context>
-{context}
-<context>
-Questions: {input}
-"""
+chat_template = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            (
+                "Answer the question based on the document and "
+                "if the question is not clear use previous chat history. "
+                "Context: '{context}'"
+            ),
+        ),
+        MessagesPlaceholder("history"),
+        ("human", "{input}"),
+    ]
 )
 
 
@@ -55,8 +62,11 @@ def vector_embedding():
         )
         document_chain = create_stuff_documents_chain(llm, chat_template)
         retriever = st.session_state.vectors.as_retriever()
+        history_aware_retriever = create_history_aware_retriever(
+            llm, retriever, chat_template
+        )
         st.session_state.retrieval_chain = create_retrieval_chain(
-            retriever, document_chain
+            history_aware_retriever, document_chain
         )
 
 
@@ -110,6 +120,10 @@ for message in st.session_state.messages:
         st.markdown(message["text"])
 
 
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+
 if prompt := st.chat_input("Enter your question here:"):
     if "vectors" not in st.session_state:
         st.error("Please upload PDF files first.")
@@ -118,7 +132,15 @@ if prompt := st.chat_input("Enter your question here:"):
     with st.chat_message("user"):
         st.markdown(prompt)
     with st.spinner("Thinking..."):
-        response = st.session_state.retrieval_chain.invoke({"input": prompt})
+        response = st.session_state.retrieval_chain.invoke(
+            {"input": prompt, "history": st.session_state.chat_history}
+        )
     with st.chat_message("ai"):
         st.markdown(response["answer"])
+    st.session_state.chat_history.extend(
+        [
+            AIMessage(content=prompt),
+            HumanMessage(content=response["answer"]),
+        ]
+    )
     st.session_state.messages.append({"role": "ai", "text": response["answer"]})
